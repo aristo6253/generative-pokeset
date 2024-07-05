@@ -3,9 +3,10 @@
 ## Card Generation
 
 ```batch
-python ./generate_set.py --image_size 512 --color True
+python ./generate_set.py --image_size 512 --color
+```
 
-## Generative Adversarial Networks (GANs) 
+## Generative Adversarial Networks (GANs)
 
 ### Training
 

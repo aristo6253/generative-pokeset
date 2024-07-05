@@ -37,5 +37,10 @@ if __name__ == '__main__':
             img = img.convert('L')
         img = img.resize((args.image_size, args.image_size), Image.Resampling.LANCZOS)
         sanitized_name = sanitize_filename(row["name"])
+        count = 0
+        while os.path.exists(os.path.join(dir_name, f"{sanitized_name}.png")):
+            count += 1
+            sanitized_name = f"{sanitized_name}_{count}"
+
         img.save(os.path.join(dir_name, f"{sanitized_name}.png"))
         

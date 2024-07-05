@@ -2,6 +2,7 @@ import os
 import argparse
 import shutil
 import time
+import csv
 from PIL import Image
 from tqdm import tqdm
 
@@ -17,6 +18,9 @@ import torchvision.transforms as transforms
 
 from GAN.model import Discriminator_64_G, Generator_64_G
 from GAN.model import Discriminator_64_RGB, Generator_64_RGB
+from GAN.model import Discriminator_256_G, Generator_256_G
+from GAN.model import Discriminator_256_RGB, Generator_256_RGB
+from GAN.model import Discriminator_512_G, Generator_512_G
 from GAN.model import Discriminator_512_RGB, Generator_512_RGB
 
 class PokemonCardsDataset(Dataset):
@@ -48,13 +52,30 @@ def parse_args():
     parser.add_argument('--image_size', type=int, choices=[64, 256, 512], default=64, help='Size of the image')
     parser.add_argument('--epochs', type=int, default=100, help='Number of epochs to train for')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
-    parser.add_argument('--color', type=bool, default=False, help='Color or grayscale')
+    parser.add_argument('--color', action='store_true', help='Use color images')
     parser.add_argument('--print_freq', type=int, default=10, help='Print frequency')
     parser.add_argument('--resume', type=bool, default=False, help='Resume training')
     parser.add_argument('--resume_epoch', type=int, default=0, help='Epoch to resume training from')
     parser.add_argument('--resume_dir', type=str, default='', help='Path to the model to resume training from')
 
     return parser.parse_args()
+
+def initialize_csv(file_path):
+    headers = [
+        "Epoch", "Total_Epochs", "Batch", "Total_Batches",
+        "D_Loss", "G_Loss", "D_Real", "D_Fake1", "D_Fake2",
+        "Elapsed_Time_Epoch", "Elapsed_Time_Batch",
+        "Average_Time_s"
+    ]
+    if not os.path.exists(file_path):
+        with open(file_path, mode='w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(headers)
+
+def append_to_csv(file_path, data):
+    with open(file_path, mode='a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(data)
 
 def train(args, writer):
     data_dir = args.data_dir
@@ -82,22 +103,28 @@ def train(args, writer):
 
     if args.color:
         if image_size == 64:
+            print('Using 64x64 color images')
             D = Discriminator_64_RGB().to(device)
             G = Generator_64_RGB().to(device)
         elif image_size == 256:
+            print('Using 256x256 color images')
             D = Discriminator_256_RGB().to(device)
             G = Generator_256_RGB().to(device)
         elif image_size == 512:
+            print('Using 512x512 color images')
             D = Discriminator_512_RGB().to(device)
             G = Generator_512_RGB().to(device)
     else:
         if image_size == 64:
+            print('Using 64x64 grayscale images')
             D = Discriminator_64_G().to(device)
             G = Generator_64_G().to(device)
         elif image_size == 256:
+            print('Using 256x256 grayscale images')
             D = Discriminator_256_G().to(device)
             G = Generator_256_G().to(device)
         elif image_size == 512:
+            print('Using 512x512 grayscale images')
             D = Discriminator_512_G().to(device)
             G = Generator_512_G().to(device)
 
@@ -117,6 +144,11 @@ def train(args, writer):
         os.makedirs(samples_dir)
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
+
+    metrics_path = os.path.join(result_dir, 'train.csv')
+
+    if not os.path.exists(metrics_path):
+        initialize_csv(metrics_path)
 
     fixed_noise = torch.randn(args.batch_size, 100, 1, 1, device=device)
 
@@ -211,14 +243,27 @@ def train(args, writer):
                 min_time_batch = elapsed_batch // 60
                 sec_time_batch = elapsed_batch % 60
                 print(
-                    "*" * 75
-                    + f"\nEpoch[{epoch + 1:04d}/{epochs:04d}]({i + 1:05d}/{batches:05d})\n"
+                    f"Epoch {epoch + 1}/{epochs}".center(50, "#")
+                    + "\n"
+                    + f"Batch {i + 1}/{batches}".center(50, "=")
+                    + "\n"
                     + f"\tD Loss: {loss_D.item():.6f} G Loss: {loss_G.item():.6f}\n"
                     + f"\tD(Real): {D_real:.6f}\n"
                     + f"\tD(Fake1)/D(Fake2): {D_fake1:.6f}/{D_fake2:.6f}\n"
                     + f"\tElapsed Time (Epoch): {min_time_epoch:.0f}m {sec_time_epoch:.0f}s\n"
                     + f"\tElapsed Time (Batch): {min_time_batch:.0f}m {sec_time_batch:.0f}s\n"
+                    + f"\tAverage Time: {avg_time:.0f}s\n"
                 )
+
+                data_to_append = [
+                    epoch + 1, epochs, i + 1, batches,
+                    loss_D.item(), loss_G.item(), D_real, D_fake1, D_fake2,
+                    elapsed_epoch,
+                    elapsed_batch,
+                    avg_time
+                ]
+
+                append_to_csv(metrics_path, data_to_append)
 
 
         ############################

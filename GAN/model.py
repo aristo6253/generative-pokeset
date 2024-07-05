@@ -194,9 +194,9 @@ class Generator_64_RGB(nn.Module):
                     nn.init.constant_(m.bias, val=0)
 
 
-class Discriminator_256_RGB(nn.Module):
+class Discriminator_256_G(nn.Module):
     def __init__(self) -> None:
-        super(Discriminator_256_RGB, self).__init__()
+        super(Discriminator_256_G, self).__init__()
         self.main = nn.Sequential(
             # Input is 1 x 256 x 256
             nn.Conv2d(in_channels=1, out_channels=64, kernel_size=(4, 4), stride=(2, 2), padding=(1, 1), bias=True),
