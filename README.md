@@ -20,7 +20,7 @@ Resume training from a checkpoint:
 python .\main_gan.py --device cpu --mode train --exp_name exp_512_rgb_100_suite --data_dir data/cards_512_RGB --batch_size 64 --image_size 512 --epochs 150 --color True --print_freq 1 --resume True --resume_epoch 51 --resume_dir GAN/samples/exp_512_rgb_100_suite
 ```
 
-![Sample GIF](https://github.com/aristo6253/generative-pokeset/GAN/train_128_rgb.gif)
+![Sample GIF](https://github.com/aristo6253/generative-pokeset/blob/main/GAN/train_128_rgb.gif)
 
 ### Validation
 
