@@ -11,13 +11,13 @@ def parse_args():
 
     parser.add_argument('--image_size', type=int, default=64, help='Size of the image')
     parser.add_argument('--color', action='store_true', help='Use color images')
+    parser.add_argument('--resume_from', type=int, default=0, help='Resume from index')
 
     return parser.parse_args()
 
-def sanitize_filename(filename):
-    # Replace invalid characters with an underscore or any other valid character
-    return "".join([c if c.isalnum() or c in (' ', '.', '_') else '_' for c in filename])
-
+def sanitize_filename(filename, max_length=100):
+    sanitized = "".join([c if c.isalnum() or c in (' ', '.', '_') else '_' for c in filename])
+    return sanitized[:max_length]
 
 if __name__ == '__main__':
     # Parse the arguments
@@ -31,16 +31,34 @@ if __name__ == '__main__':
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)
 
+    existing_files = {f.split('.')[0] for f in os.listdir(dir_name)}
+
     for index, row in tqdm(poke_cards_df.iterrows(), total=len(poke_cards_df)):
-        img = Image.open(BytesIO(requests.get(row['image_url']).content))
+        if index < args.resume_from:
+            continue
+        # print(f"Processing {row['name']}")
+        
+        try:
+            img = Image.open(BytesIO(requests.get(row['image_url']).content))
+        except Exception as e:
+            print(f"Failed to download image for {row['name']}: {e}")
+            continue
+        
         if not args.color:
             img = img.convert('L')
         img = img.resize((args.image_size, args.image_size), Image.Resampling.LANCZOS)
-        sanitized_name = sanitize_filename(row["name"])
-        count = 0
-        while os.path.exists(os.path.join(dir_name, f"{sanitized_name}.png")):
-            count += 1
-            sanitized_name = f"{sanitized_name}_{count}"
-
-        img.save(os.path.join(dir_name, f"{sanitized_name}.png"))
         
+        sanitized_name = sanitize_filename(row["name"])
+        file_index = 0
+        file_path = os.path.join(dir_name, f"{sanitized_name}_{file_index}.png")
+        
+        while os.path.exists(file_path) or f"{sanitized_name}_{file_index}" in existing_files:
+            file_index += 1
+            file_path = os.path.join(dir_name, f"{sanitized_name}_{file_index}.png")
+        
+        existing_files.add(f"{sanitized_name}_{file_index}")
+
+        try:
+            img.save(file_path)
+        except Exception as e:
+            print(f"Failed to save image for {row['name']}: {e}")

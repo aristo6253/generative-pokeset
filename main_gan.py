@@ -18,6 +18,8 @@ import torchvision.transforms as transforms
 
 from GAN.model import Discriminator_64_G, Generator_64_G
 from GAN.model import Discriminator_64_RGB, Generator_64_RGB
+from GAN.model import Discriminator_128_G, Generator_128_G
+from GAN.model import Discriminator_128_RGB, Generator_128_RGB
 from GAN.model import Discriminator_256_G, Generator_256_G
 from GAN.model import Discriminator_256_RGB, Generator_256_RGB
 from GAN.model import Discriminator_512_G, Generator_512_G
@@ -47,9 +49,11 @@ def parse_args():
     parser.add_argument('--benchmark', type=bool, default=True, help='Enable cudnn benchmark (only for fixed size inputs)')
     parser.add_argument('--mode', type=str, default='train', help='Mode to run the script in')
     parser.add_argument('--exp_name', type=str, default='exp000', help='Name of the experiment')
+    parser.add_argument('--val_early', action='store_true', help='Validate early')
+    parser.add_argument('--val_epoch', type=int, default=1, help='Validate model from epoch')
     parser.add_argument('--data_dir', type=str, default='data', help='Path to the data directory')
     parser.add_argument('--batch_size', type=int, default=64, help='Batch size')
-    parser.add_argument('--image_size', type=int, choices=[64, 256, 512], default=64, help='Size of the image')
+    parser.add_argument('--image_size', type=int, choices=[64, 128, 256, 512], default=64, help='Size of the image')
     parser.add_argument('--epochs', type=int, default=100, help='Number of epochs to train for')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--color', action='store_true', help='Use color images')
@@ -65,7 +69,7 @@ def initialize_csv(file_path):
         "Epoch", "Total_Epochs", "Batch", "Total_Batches",
         "D_Loss", "G_Loss", "D_Real", "D_Fake1", "D_Fake2",
         "Elapsed_Time_Epoch", "Elapsed_Time_Batch",
-        "Average_Time_s"
+        "Average_Time_s", "Elapsed_Time_Training"
     ]
     if not os.path.exists(file_path):
         with open(file_path, mode='w', newline='') as file:
@@ -106,6 +110,10 @@ def train(args, writer):
             print('Using 64x64 color images')
             D = Discriminator_64_RGB().to(device)
             G = Generator_64_RGB().to(device)
+        elif image_size == 128:
+            print('Using 128x128 color images')
+            D = Discriminator_128_RGB().to(device)
+            G = Generator_128_RGB().to(device)
         elif image_size == 256:
             print('Using 256x256 color images')
             D = Discriminator_256_RGB().to(device)
@@ -119,6 +127,10 @@ def train(args, writer):
             print('Using 64x64 grayscale images')
             D = Discriminator_64_G().to(device)
             G = Generator_64_G().to(device)
+        elif image_size == 128:
+            print('Using 128x128 grayscale images')
+            D = Discriminator_128_G().to(device)
+            G = Generator_128_G().to(device)
         elif image_size == 256:
             print('Using 256x256 grayscale images')
             D = Discriminator_256_G().to(device)
@@ -164,6 +176,8 @@ def train(args, writer):
 
     # Create the dataloader
     dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, pin_memory=True)
+
+    training_start_time = time.time()
 
     for epoch in range(start_epoch, epochs):
 
@@ -236,12 +250,16 @@ def train(args, writer):
             if (i + 1) % args.print_freq == 0 or (i + 1) == batches:
                 elapsed_epoch = time.time() - epoch_start_time
                 elapsed_batch = time.time() - batch_start_time
+                elapsed_train = time.time() - training_start_time
                 
                 avg_time = elapsed_batch / args.print_freq
                 min_time_epoch = elapsed_epoch // 60
                 sec_time_epoch = elapsed_epoch % 60
                 min_time_batch = elapsed_batch // 60
                 sec_time_batch = elapsed_batch % 60
+                hr_time_train = elapsed_train // 3600
+                min_time_train = (elapsed_train // 60) % 60
+                sec_time_train = elapsed_train % 60
                 print(
                     f"Epoch {epoch + 1}/{epochs}".center(50, "#")
                     + "\n"
@@ -253,6 +271,7 @@ def train(args, writer):
                     + f"\tElapsed Time (Epoch): {min_time_epoch:.0f}m {sec_time_epoch:.0f}s\n"
                     + f"\tElapsed Time (Batch): {min_time_batch:.0f}m {sec_time_batch:.0f}s\n"
                     + f"\tAverage Time: {avg_time:.0f}s\n"
+                    + f"\tElapsed Time (Train): {hr_time_train:.0f}h {min_time_train:.0f}m {sec_time_train:.0f}s\n"
                 )
 
                 data_to_append = [
@@ -260,7 +279,8 @@ def train(args, writer):
                     loss_D.item(), loss_G.item(), D_real, D_fake1, D_fake2,
                     elapsed_epoch,
                     elapsed_batch,
-                    avg_time
+                    avg_time,
+                    elapsed_train
                 ]
 
                 append_to_csv(metrics_path, data_to_append)
@@ -299,14 +319,26 @@ def validate(args, writer):
     if args.color:
         if args.image_size == 64:
             G = Generator_64_RGB().to(device)
+        elif args.image_size == 128:
+            G = Generator_128_RGB().to(device)
+        elif args.image_size == 256:
+            G = Generator_256_RGB().to(device)
         elif args.image_size == 512:
             G = Generator_512_RGB().to(device)
     else:
         if args.image_size == 64:
             G = Generator_64_G().to(device)
+        elif args.image_size == 128:
+            G = Generator_128_G().to(device)
+        elif args.image_size == 256:
+            G = Generator_256_G().to(device)
         elif args.image_size == 512:
-            raise ValueError('Image size 512 not supported for grayscale images')
-    model_path = f'results/{args.exp_name}/g-last.pth'
+            G = Generator_512_G().to(device)
+
+    if args.val_early:
+        model_path = f'GAN/samples/{args.exp_name}/g_epoch{args.val_epoch}.pth'
+    else:
+        model_path = f'GAN/results/{args.exp_name}/g-last.pth'
 
     if os.path.exists(eval_dir):
         shutil.rmtree(eval_dir)

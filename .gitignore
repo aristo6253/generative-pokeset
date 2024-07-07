@@ -166,4 +166,4 @@ data/**/*.png
 GAN/samples/
 GAN/results/
 samples/
-*.gif
+# *.gif
